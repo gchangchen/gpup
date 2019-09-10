@@ -3,9 +3,11 @@ package cli
 import (
 	"context"
 	"fmt"
+	"io/ioutil"
 	"log"
 
 	flags "github.com/jessevdk/go-flags"
+	homedir "github.com/mitchellh/go-homedir"
 )
 
 // CLI represents input for the command.
@@ -16,11 +18,13 @@ type CLI struct {
 	RequestBasicAuth string   `long:"request-auth" value-name:"USER:PASS" description:"Add the basic auth header on fetching URLs"`
 
 	ConfigName string `long:"gpupconfig" env:"GPUPCONFIG" default:"~/.gpupconfig" description:"Path to the config file"`
+	CacheName  string `long:"gpupcache" env:"GPUPCACHE" default:"~/.gpupcache" description:"Path to the cache file"`
 	Debug      bool   `long:"debug" env:"DEBUG" description:"Enable request and response logging"`
 
 	ExternalConfig ExternalConfig `group:"Options read from gpupconfig"`
 
-	Paths []string
+	Paths    []string
+	FileHash map[string]bool
 }
 
 // New creates a new CLI object.
@@ -58,6 +62,17 @@ func (c *CLI) Run(ctx context.Context) error {
 			return err
 		}
 	}
+
+	c.FileHash = make(map[string]bool)
+
+	c.CacheName, _ = homedir.Expand(c.CacheName)
+	if content, err := ioutil.ReadFile(c.CacheName); err == nil {
+		for i := 0; i < len(content)/16; i++ {
+			md5 := fmt.Sprintf("%x", content[16*i:16*(i+1)])
+			c.FileHash[md5] = true
+		}
+	}
+
 	return c.upload(ctx)
 }
 
